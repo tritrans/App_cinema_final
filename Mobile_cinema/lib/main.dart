@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/providers.dart';
+import 'utils/theme_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart'; // Import LoginScreen
 
@@ -32,11 +33,23 @@ class MyApp extends StatelessWidget {
         // Booking Provider
         ChangeNotifierProvider(create: (_) => BookingProvider()),
 
+        // Ticket Provider
+        ChangeNotifierProvider(create: (_) => TicketProvider()),
+
+        // Favorite Provider
+        ChangeNotifierProvider(create: (_) => FavoriteProvider()),
+
+        // Theme Provider
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+
         // Review Provider
         ChangeNotifierProvider(create: (_) => ReviewProvider()),
 
         // Comment Provider
         ChangeNotifierProvider(create: (_) => CommentProvider()),
+
+        // Cast Provider
+        ChangeNotifierProvider(create: (_) => CastProvider()),
       ],
       child: Consumer<AuthProvider>(
         builder: (context, authProvider, child) {

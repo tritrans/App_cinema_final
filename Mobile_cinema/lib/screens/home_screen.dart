@@ -30,10 +30,21 @@ class _HomeScreenState extends State<HomeScreen> {
     // Reset data trước khi load
     movieProvider.resetData();
 
-    await Future.wait([
-      movieProvider.getMovies(),
-      movieProvider.getGenres(),
-    ]);
+    try {
+      await Future.wait([
+        movieProvider.getMovies(),
+        movieProvider.getGenres(),
+      ]).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('HomeScreen: Data loading timeout');
+          return [];
+        },
+      );
+    } catch (e) {
+      print('HomeScreen: Error loading data: $e');
+      // Continue with UI even if data loading fails
+    }
   }
 
   @override
@@ -57,7 +68,16 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Consumer<MovieProvider>(
         builder: (context, movieProvider, child) {
           if (movieProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Đang tải dữ liệu...'),
+                ],
+              ),
+            );
           }
 
           if (movieProvider.errorMessage != null) {
@@ -86,6 +106,43 @@ class _HomeScreenState extends State<HomeScreen> {
                       _loadData();
                     },
                     child: const Text('Thử lại'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // Fallback UI khi không có data
+          if (movieProvider.movies.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.movie_outlined,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Chưa có phim nào',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Vui lòng thử lại sau',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadData,
+                    child: const Text('Tải lại'),
                   ),
                 ],
               ),

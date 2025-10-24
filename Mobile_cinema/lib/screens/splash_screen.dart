@@ -53,6 +53,10 @@ class _SplashScreenState extends State<SplashScreen>
 
       final authProvider = context.read<AuthProvider>();
 
+      // Khởi tạo authentication state
+      print('SplashScreen: Initializing authentication...');
+      await authProvider.initializeAuth();
+
       print(
           'SplashScreen: AuthProvider isAuthenticated: ${authProvider.isAuthenticated}');
       print('SplashScreen: AuthProvider isLoading: ${authProvider.isLoading}');

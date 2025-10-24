@@ -28,7 +28,10 @@ class _TicketScreenState extends State<TicketScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTickets();
+    // Defer API call to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadTickets();
+    });
   }
 
   Future<void> _loadTickets() async {

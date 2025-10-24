@@ -36,17 +36,22 @@ class _MainScreenState extends State<MainScreen> {
     // safely call notifyListeners without triggering "setState during build"
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       print('MainScreen: Loading tickets and favorites from API...');
-      try {
-        await context.read<FavoriteProvider>().getFavorites();
-      } catch (e) {
-        // swallow errors - providers handle their own error state
-      }
 
+      // Add timeout to prevent hanging
       try {
-        // Load tickets from API (user id is obtained internally by provider)
-        await context.read<TicketProvider>().loadTicketsFromAPI(1);
+        await Future.wait([
+          context.read<FavoriteProvider>().getFavorites(),
+          context.read<TicketProvider>().loadTicketsFromAPI(1),
+        ]).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print('MainScreen: Data loading timeout');
+            return [];
+          },
+        );
       } catch (e) {
-        // ignore
+        print('MainScreen: Error loading data: $e');
+        // Continue with UI even if data loading fails
       }
 
       if (!mounted) return;

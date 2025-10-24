@@ -48,7 +48,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    // Gửi OTP trước
+    // Bước 1: Gọi API register trước
+    final registerSuccess = await authProvider.register(
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      passwordConfirmation: _confirmPasswordController.text,
+    );
+
+    if (!registerSuccess) {
+      // Hiển thị lỗi nếu register thất bại
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authProvider.errorMessage ?? 'Đăng ký thất bại'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Bước 2: Gửi OTP sau khi register thành công
     final otpSent = await authProvider.sendOtp(
       email: _emailController.text.trim(),
       type: 'verification',
@@ -71,11 +92,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       }
     } else {
-      // Hiển thị lỗi
+      // Hiển thị lỗi nếu gửi OTP thất bại
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Có lỗi xảy ra'),
+            content: Text(authProvider.errorMessage ?? 'Không thể gửi OTP'),
             backgroundColor: Colors.red,
           ),
         );
@@ -86,32 +107,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 40),
-
                 const SizedBox(height: 50),
-                // Logo or App name
-                Image.asset(
-                  'assets/icon/user_add_icon.png', // Use the user add icon asset
+
+                // Logo - Red circle with user add icon
+                Container(
+                  width: 80,
                   height: 80,
-                  color: Theme.of(context).primaryColor,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_add,
+                    color: Colors.white,
+                    size: 40,
+                  ),
                 ),
+
                 const SizedBox(height: 16),
+
+                // App title
                 const Text(
                   'ĐĂNG KÝ',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
+                    color: Colors.black,
                   ),
                 ),
+
                 const SizedBox(height: 8),
+
+                // Subtitle
                 const Text(
                   'Tạo tài khoản mới để bắt đầu',
                   style: TextStyle(
@@ -119,20 +155,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     color: Colors.grey,
                   ),
                 ),
+
                 const SizedBox(height: 50),
 
                 // Name field
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
                   ),
                   child: TextFormField(
                     controller: _nameController,
                     decoration: InputDecoration(
-                      labelText: 'Họ và tên',
-                      prefixIcon: const Icon(Icons.person_outline),
+                      hintText: 'Họ và tên',
+                      prefixIcon:
+                          const Icon(Icons.person_outline, color: Colors.grey),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -144,15 +181,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: Theme.of(context).primaryColor,
+                          color: Colors.red,
                           width: 2,
                         ),
                       ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      floatingLabelStyle: TextStyle(
-                        color: Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
-                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -171,16 +204,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 // Email field
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
                   ),
                   child: TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
+                      hintText: 'Email',
+                      prefixIcon:
+                          const Icon(Icons.email_outlined, color: Colors.grey),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -192,15 +225,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: Theme.of(context).primaryColor,
+                          color: Colors.red,
                           width: 2,
                         ),
                       ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      floatingLabelStyle: TextStyle(
-                        color: Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
-                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -220,21 +249,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 // Password field
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
                   ),
                   child: TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
-                      labelText: 'Mật khẩu',
-                      prefixIcon: const Icon(Icons.lock_outline),
+                      hintText: 'Mật khẩu',
+                      prefixIcon:
+                          const Icon(Icons.lock_outline, color: Colors.grey),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
                               ? Icons.visibility_off
                               : Icons.visibility,
+                          color: Colors.grey,
                         ),
                         onPressed: () {
                           setState(() {
@@ -253,15 +283,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: Theme.of(context).primaryColor,
+                          color: Colors.red,
                           width: 2,
                         ),
                       ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      floatingLabelStyle: TextStyle(
-                        color: Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
-                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -280,21 +306,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 // Confirm password field
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
                   ),
                   child: TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
                     decoration: InputDecoration(
-                      labelText: 'Xác nhận mật khẩu',
-                      prefixIcon: const Icon(Icons.lock_outline),
+                      hintText: 'Xác nhận mật khẩu',
+                      prefixIcon:
+                          const Icon(Icons.lock_outline, color: Colors.grey),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirmPassword
                               ? Icons.visibility_off
                               : Icons.visibility,
+                          color: Colors.grey,
                         ),
                         onPressed: () {
                           setState(() {
@@ -313,15 +340,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: Theme.of(context).primaryColor,
+                          color: Colors.red,
                           width: 2,
                         ),
                       ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      floatingLabelStyle: TextStyle(
-                        color: Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
-                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -347,7 +370,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onPressed:
                             authProvider.isLoading ? null : _handleRegister,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
+                          backgroundColor: Colors.red,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -369,6 +392,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 1,
+                                  color: Colors.white,
                                 ),
                               ),
                       ),
@@ -385,9 +409,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const Text('Đã có tài khoản?'),
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: Text(
+                      child: const Text(
                         'Đăng nhập',
-                        style: TextStyle(color: Theme.of(context).primaryColor),
+                        style: TextStyle(color: Colors.red),
                       ),
                     ),
                   ],
