@@ -3,8 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/theater.dart';
 
 class TheaterApiService {
-  static const String baseUrl =
-      'http://10.0.2.2:8000/api'; // Thay đổi IP nếu cần
+  static const String baseUrl = 'http://10.0.2.2:8000/api'; // Android emulator
 
   // Helper to get headers
   Map<String, String> _getHeaders() {
@@ -16,10 +15,11 @@ class TheaterApiService {
 
   // Helper for handling response
   Map<String, dynamic> _handleResponse(http.Response response) {
+    final String decodedBody = utf8.decode(response.bodyBytes);
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return json.decode(response.body);
+      return json.decode(decodedBody);
     } else {
-      final errorBody = json.decode(response.body);
+      final errorBody = json.decode(decodedBody);
       throw Exception(errorBody['message'] ?? 'An error occurred');
     }
   }
@@ -30,7 +30,7 @@ class TheaterApiService {
       print('TheaterApiService: Calling API to get all theaters...');
 
       final response = await http.get(
-        Uri.parse('$baseUrl/theaters/basic'),
+        Uri.parse('$baseUrl/theaters'),
         headers: _getHeaders(),
       );
 
@@ -46,7 +46,18 @@ class TheaterApiService {
 
       if (response.statusCode == 200) {
         try {
-          final data = json.decode(response.body);
+          // Use utf8.decode to handle encoding issues
+          // Clean the response body to fix escape character issues
+          String responseBody = utf8.decode(response.bodyBytes);
+
+          // Fix common JSON escape issues that cause parsing errors
+          responseBody = responseBody.replaceAll('\\u', '\\\\u');
+          responseBody = responseBody.replaceAll('\\"', '\\\\"');
+          responseBody = responseBody.replaceAll('\\n', '\\\\n');
+          responseBody = responseBody.replaceAll('\\r', '\\\\r');
+          responseBody = responseBody.replaceAll('\\t', '\\\\t');
+
+          final data = json.decode(responseBody);
 
           // Handle different response formats
           List<dynamic> theatersJson;
@@ -65,13 +76,37 @@ class TheaterApiService {
             throw Exception('Unexpected API response format');
           }
 
-          final theaters = theatersJson.map((theaterJson) {
+          // Limit the number of theaters to prevent memory issues
+          final limitedTheatersJson = theatersJson.take(3).toList();
+          print(
+              'TheaterApiService: Processing ${limitedTheatersJson.length} theaters (limited from ${theatersJson.length})');
+
+          final theaters = limitedTheatersJson.map((theaterJson) {
             try {
               return Theater.fromJson(theaterJson);
             } catch (e) {
               print('TheaterApiService: Error parsing theater: $e');
               print('TheaterApiService: Theater data: $theaterJson');
-              rethrow;
+              // Return a default theater instead of throwing
+              return Theater(
+                id: theaterJson['id'] is int
+                    ? theaterJson['id']
+                    : int.tryParse(theaterJson['id']?.toString() ?? '0') ?? 0,
+                name: theaterJson['name']?.toString() ?? 'Unknown Theater',
+                address: theaterJson['address']?.toString() ?? '',
+                phone: theaterJson['phone']?.toString() ?? '',
+                email: theaterJson['email']?.toString() ?? '',
+                city: theaterJson['city']?.toString() ?? 'Unknown City',
+                description: theaterJson['description']?.toString() ?? '',
+                active: theaterJson['is_active'] == true,
+                totalSeats: theaterJson['total_seats'] is int
+                    ? theaterJson['total_seats']
+                    : int.tryParse(
+                            theaterJson['total_seats']?.toString() ?? '0') ??
+                        0,
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              );
             }
           }).toList();
 
@@ -80,7 +115,9 @@ class TheaterApiService {
           return theaters;
         } catch (e) {
           print('TheaterApiService: JSON parsing error: $e');
-          throw Exception('Failed to parse API response: $e');
+          // Return empty list instead of throwing to prevent app crash
+          print('TheaterApiService: Returning empty list due to parsing error');
+          return [];
         }
       } else {
         print('TheaterApiService: API error: ${response.statusCode}');

@@ -10,7 +10,7 @@ class ApiService {
   // 127.0.0.1:8000 - iOS simulator
   // localhost:8000 - Web/Desktop
   // your-ip:8000 - Real device
-  static const String baseUrl = 'http://10.0.2.2:8000/api'; // Real device IP
+  static const String baseUrl = 'http://10.0.2.2:8000/api'; // Android emulator
   // Alternative URLs to try:
   // static const String baseUrl = 'http://10.0.2.2:8000/api'; // Android emulator
   // static const String baseUrl = 'http://localhost:8000/api'; // Web/Desktop
@@ -55,10 +55,16 @@ class ApiService {
     return headers;
   }
 
-  // Xử lý response chung với error handling cải thiện
+  /// Xử lý response từ API với error handling cải thiện
+  ///
+  /// [response] - HTTP response từ server
+  ///
+  /// Trả về Map chứa dữ liệu đã parse hoặc throw ApiException nếu có lỗi
   Map<String, dynamic> _handleResponse(http.Response response) {
     try {
-      final Map<String, dynamic> data = json.decode(response.body);
+      // Use utf8.decode to handle encoding issues
+      final decodedBody = utf8.decode(response.bodyBytes);
+      final Map<String, dynamic> data = json.decode(decodedBody);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return data;
@@ -72,8 +78,20 @@ class ApiService {
     } catch (e) {
       if (e is ApiException) rethrow;
 
+      // Better error handling for different types of errors
+      String errorMessage;
+      if (e is FormatException) {
+        errorMessage = 'Dữ liệu từ server không hợp lệ';
+      } else if (response.statusCode == 0) {
+        errorMessage = 'Không thể kết nối đến server';
+      } else if (response.statusCode >= 500) {
+        errorMessage = 'Lỗi server, vui lòng thử lại sau';
+      } else {
+        errorMessage = 'Có lỗi xảy ra: ${e.toString()}';
+      }
+
       throw ApiException(
-        message: 'Lỗi kết nối hoặc dữ liệu không hợp lệ',
+        message: errorMessage,
         statusCode: response.statusCode,
         errors: null,
       );
@@ -673,12 +691,25 @@ class ApiService {
     required List<String> seatIds,
     List<Map<String, dynamic>>? snacks,
     required double totalPrice,
+    int? userId,
   }) async {
     try {
+      // Get current user ID if not provided
+      int actualUserId = userId ?? 6; // Default fallback
+      if (userId == null) {
+        try {
+          final currentUser = await getCurrentUser();
+          actualUserId = currentUser['data']['id'] ?? 6;
+        } catch (e) {
+          print('ApiService: Could not get current user, using fallback: $e');
+        }
+      }
+
       final response = await http.post(
         Uri.parse('$baseUrl/bookings'),
         headers: await _authHeaders,
         body: json.encode({
+          'user_id': actualUserId,
           'showtime_id': showtimeId,
           'seat_ids': seatIds,
           'snacks': snacks ?? [],
@@ -796,21 +827,46 @@ class ApiService {
     }
   }
 
-  // Tạo review
+  /// Tạo đánh giá mới cho phim
+  ///
+  /// [movieId] - ID của phim
+  /// [rating] - Điểm đánh giá (1-5)
+  /// [comment] - Nội dung đánh giá (tùy chọn)
+  ///
+  /// Trả về Map chứa dữ liệu review đã tạo
   Future<Map<String, dynamic>> createReview({
     required int movieId,
     required double rating,
     String? comment,
   }) async {
     try {
+      // Get current user ID
+      int userId = 6; // Default fallback
+      try {
+        final currentUser = await getCurrentUser();
+        userId = currentUser['data']['id'] ?? 6;
+      } catch (e) {
+        print(
+            'ApiService: Could not get current user for review, using fallback: $e');
+      }
+
+      final requestBody = {
+        'user_id': userId,
+        'rating': rating,
+        'comment': comment,
+      };
+
+      print('ApiService: Creating review with body: $requestBody');
+      print('ApiService: URL: $baseUrl/movies/$movieId/reviews');
+
       final response = await http.post(
         Uri.parse('$baseUrl/movies/$movieId/reviews'),
         headers: await _authHeaders,
-        body: json.encode({
-          'rating': rating,
-          'comment': comment,
-        }),
+        body: json.encode(requestBody),
       );
+
+      print('ApiService: Review response status: ${response.statusCode}');
+      print('ApiService: Review response body: ${response.body}');
 
       return _handleResponse(response);
     } catch (e) {
@@ -888,21 +944,46 @@ class ApiService {
     }
   }
 
-  // Tạo comment
+  /// Tạo comment mới cho phim
+  ///
+  /// [movieId] - ID của phim
+  /// [content] - Nội dung bình luận
+  /// [parentId] - ID của comment gốc (nếu là reply)
+  ///
+  /// Trả về Map chứa dữ liệu comment đã tạo
   Future<Map<String, dynamic>> createComment({
     required int movieId,
     required String content,
     int? parentId,
   }) async {
     try {
+      // Get current user ID
+      int userId = 6; // Default fallback
+      try {
+        final currentUser = await getCurrentUser();
+        userId = currentUser['data']['id'] ?? 6;
+      } catch (e) {
+        print(
+            'ApiService: Could not get current user for comment, using fallback: $e');
+      }
+
+      final requestBody = {
+        'user_id': userId,
+        'content': content,
+        'parent_id': parentId,
+      };
+
+      print('ApiService: Creating comment with body: $requestBody');
+      print('ApiService: URL: $baseUrl/movies/$movieId/comments');
+
       final response = await http.post(
         Uri.parse('$baseUrl/movies/$movieId/comments'),
         headers: await _authHeaders,
-        body: json.encode({
-          'content': content,
-          'parent_id': parentId,
-        }),
+        body: json.encode(requestBody),
       );
+
+      print('ApiService: Comment response status: ${response.statusCode}');
+      print('ApiService: Comment response body: ${response.body}');
 
       return _handleResponse(response);
     } catch (e) {
@@ -910,19 +991,88 @@ class ApiService {
     }
   }
 
-  // Tạo reply cho comment
+  /// Tạo reply cho comment
+  ///
+  /// [commentId] - ID của comment gốc
+  /// [content] - Nội dung reply
+  ///
+  /// Trả về Map chứa dữ liệu reply đã tạo
   Future<Map<String, dynamic>> createCommentReply({
     required int commentId,
     required String content,
   }) async {
     try {
+      // Get current user ID
+      int userId = 6; // Default fallback
+      try {
+        final currentUser = await getCurrentUser();
+        userId = currentUser['data']['id'] ?? 6;
+      } catch (e) {
+        print(
+            'ApiService: Could not get current user for comment reply, using fallback: $e');
+      }
+
+      final requestBody = {
+        'user_id': userId,
+        'content': content,
+      };
+
+      print('ApiService: Creating comment reply with body: $requestBody');
+      print('ApiService: URL: $baseUrl/comments/$commentId/reply');
+
       final response = await http.post(
         Uri.parse('$baseUrl/comments/$commentId/reply'),
         headers: await _authHeaders,
-        body: json.encode({
-          'content': content,
-        }),
+        body: json.encode(requestBody),
       );
+
+      print(
+          'ApiService: Comment reply response status: ${response.statusCode}');
+      print('ApiService: Comment reply response body: ${response.body}');
+
+      return _handleResponse(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Tạo reply cho đánh giá (thực chất là tạo comment)
+  ///
+  /// [reviewId] - ID của đánh giá gốc
+  /// [content] - Nội dung reply
+  ///
+  /// Trả về Map chứa dữ liệu reply đã tạo
+  Future<Map<String, dynamic>> createReviewReply({
+    required int reviewId,
+    required String content,
+  }) async {
+    try {
+      // Get current user ID
+      int userId = 6; // Default fallback
+      try {
+        final currentUser = await getCurrentUser();
+        userId = currentUser['data']['id'] ?? 6;
+      } catch (e) {
+        print(
+            'ApiService: Could not get current user for review reply, using fallback: $e');
+      }
+
+      final requestBody = {
+        'user_id': userId,
+        'content': content,
+      };
+
+      print('ApiService: Creating review reply with body: $requestBody');
+      print('ApiService: URL: $baseUrl/reviews/$reviewId/reply');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/reviews/$reviewId/reply'),
+        headers: await _authHeaders,
+        body: json.encode(requestBody),
+      );
+
+      print('ApiService: Review reply response status: ${response.statusCode}');
+      print('ApiService: Review reply response body: ${response.body}');
 
       return _handleResponse(response);
     } catch (e) {

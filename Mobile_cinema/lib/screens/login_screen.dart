@@ -22,6 +22,15 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    // Pre-fill with test data for development
+    _emailController.text = 'tritranminh484@gmail.com';
+    _passwordController.text = '12345678';
+
+    // Clear any existing auth data for testing
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      authProvider.clearAuth();
+    });
   }
 
   Future<void> _login() async {
@@ -44,6 +53,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       print('LoginScreen: Starting login process...');
+      print('LoginScreen: Email: $email');
+      print('LoginScreen: Password: $password');
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final ok = await authProvider.login(email: email, password: password);
 

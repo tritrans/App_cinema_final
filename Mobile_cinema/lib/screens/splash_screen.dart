@@ -76,7 +76,12 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
 
       // Kiểm tra trạng thái đăng nhập từ AuthProvider
-      if (authProvider.isAuthenticated) {
+      print(
+          'SplashScreen: Final auth check - isAuthenticated: ${authProvider.isAuthenticated}');
+      print(
+          'SplashScreen: Final auth check - currentUser: ${authProvider.currentUser?.name}');
+
+      if (authProvider.isAuthenticated && authProvider.currentUser != null) {
         print('SplashScreen: User is authenticated, navigating to /main');
         Navigator.pushReplacementNamed(context, '/main');
       } else {

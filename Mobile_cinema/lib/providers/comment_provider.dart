@@ -7,235 +7,138 @@ class CommentProvider with ChangeNotifier {
 
   List<Comment> _comments = [];
   bool _isLoading = false;
-  String? _errorMessage;
+  String? _error;
+  int _currentMovieId = 0;
 
-  // Getters
   List<Comment> get comments => _comments;
   bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
+  String? get error => _error;
+  String? get errorMessage => _error; // Alias for compatibility
 
-  // Clear error message
-  void clearError() {
-    _errorMessage = null;
+  // Get comments for a specific movie
+  Future<void> getMovieComments(int movieId) async {
+    if (_currentMovieId == movieId && _comments.isNotEmpty) {
+      return; // Already loaded
+    }
+
+    _isLoading = true;
+    _error = null;
+    _currentMovieId = movieId;
     notifyListeners();
-  }
 
-  // Set loading state
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
+    try {
+      final response = await _apiService.getMovieComments(movieId);
+      if (response['success'] == true) {
+        // Handle both List and Map responses
+        List<dynamic> commentsData;
+        if (response['data'] is List) {
+          commentsData = response['data'] as List;
+        } else if (response['data'] is Map &&
+            response['data']['data'] is List) {
+          commentsData = response['data']['data'] as List;
+        } else {
+          commentsData = [];
+        }
 
-  // Set error message
-  void _setError(String message) {
-    _errorMessage = message;
+        _comments = commentsData.map((json) => Comment.fromJson(json)).toList();
+      } else {
+        _error = response['message'] ?? 'Không thể tải bình luận';
+      }
+    } catch (e) {
+      _error = 'Lỗi: ${e.toString()}';
+    }
+
     _isLoading = false;
     notifyListeners();
   }
 
-  // Get movie comments
-  Future<void> getMovieComments(int movieId, {int page = 1}) async {
+  /// Tạo comment mới cho phim
+  ///
+  /// [movieId] - ID của phim
+  /// [content] - Nội dung bình luận
+  /// [parentId] - ID của comment gốc (nếu là reply)
+  /// [token] - JWT token để xác thực
+  ///
+  /// Trả về true nếu tạo thành công, false nếu có lỗi
+  Future<bool> createComment(int movieId, String content,
+      {int? parentId, String? token}) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
     try {
-      _setLoading(true);
-      clearError();
-
-      final response = await _apiService.getMovieComments(movieId, page: page);
-
-      if (response['success'] == true && response['data'] != null) {
-        if (page == 1) {
-          // First page - replace existing comments
-          _comments = (response['data'] as List)
-              .map((commentJson) => Comment.fromJson(commentJson))
-              .toList();
-        } else {
-          // Additional pages - append to existing comments
-          final newComments = (response['data'] as List)
-              .map((commentJson) => Comment.fromJson(commentJson))
-              .toList();
-          _comments.addAll(newComments);
-        }
-
-        // Sort comments by creation date (newest first)
-        _comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        _setLoading(false);
-      } else {
-        _setError(response['message'] ?? 'Không thể tải bình luận');
-      }
-    } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
-      } else {
-        _setError('Có lỗi xảy ra khi tải bình luận');
-      }
-    }
-  }
-
-  // Create comment
-  Future<bool> createComment({
-    required int movieId,
-    required String content,
-    int? parentId,
-  }) async {
-    try {
-      _setLoading(true);
-      clearError();
-
       final response = await _apiService.createComment(
         movieId: movieId,
         content: content,
         parentId: parentId,
       );
-
-      if (response['success'] == true && response['data'] != null) {
-        final newComment = Comment.fromJson(response['data']);
-
-        // Add to the beginning of the list
-        _comments.insert(0, newComment);
-
-        _setLoading(false);
+      if (response['success'] == true) {
+        // Refresh comments after adding
+        await getMovieComments(movieId);
         return true;
       } else {
-        _setError(response['message'] ?? 'Không thể tạo bình luận');
+        _error = response['message'] ?? 'Không thể thêm bình luận';
         return false;
       }
     } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
-      } else {
-        _setError('Có lỗi xảy ra khi tạo bình luận');
-      }
+      _error = 'Lỗi: ${e.toString()}';
       return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  // Create comment reply
-  Future<bool> createCommentReply({
-    required int commentId,
-    required String content,
-  }) async {
-    try {
-      _setLoading(true);
-      clearError();
+  // Reply to a comment
+  Future<bool> replyToComment(
+      int commentId, String content, String token) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
+    try {
       final response = await _apiService.createCommentReply(
         commentId: commentId,
         content: content,
       );
-
-      if (response['success'] == true && response['data'] != null) {
-        final newReply = Comment.fromJson(response['data']);
-
-        // Find the parent comment and add the reply
-        final parentIndex = _comments.indexWhere((c) => c.id == commentId);
-        if (parentIndex != -1) {
-          // For simplicity, we'll just re-fetch comments or update the list
-          // A more complex solution would involve adding a 'replies' list to the Comment model
-          // and updating it here. For now, we'll just refresh the list.
-          getMovieComments(_comments[parentIndex].movieId);
-        } else {
-          // If it's a reply to a reply, or parent not found, just refresh all comments
-          // This might be inefficient for deep reply trees, but simple for now.
-          // A better approach would be to have a nested Comment structure.
-          getMovieComments(newReply.movieId);
-        }
-
-        _setLoading(false);
-        return true;
-      } else {
-        _setError(response['message'] ?? 'Không thể tạo phản hồi');
-        return false;
-      }
-    } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
-      } else {
-        _setError('Có lỗi xảy ra khi tạo phản hồi');
-      }
-      return false;
-    }
-  }
-
-  // Update comment
-  Future<bool> updateComment({
-    required int commentId,
-    required String content,
-  }) async {
-    try {
-      _setLoading(true);
-      clearError();
-
-      final response = await _apiService.updateComment(
-        commentId: commentId,
-        content: content,
-      );
-
-      if (response['success'] == true && response['data'] != null) {
-        final updatedComment = Comment.fromJson(response['data']);
-
-        // Update in the list
-        final index = _comments.indexWhere((c) => c.id == commentId);
-        if (index != -1) {
-          _comments[index] = updatedComment;
-        } else {
-          // If it's a reply, we'll need to refresh the whole list for simplicity
-          // A more robust solution would involve nested comment updates.
-          if (updatedComment.parentId != null) {
-            final parentIndex =
-                _comments.indexWhere((c) => c.id == updatedComment.parentId);
-            if (parentIndex != -1) {
-              getMovieComments(_comments[parentIndex].movieId);
-            }
-          }
-        }
-
-        _setLoading(false);
-        return true;
-      } else {
-        _setError(response['message'] ?? 'Không thể cập nhật bình luận');
-        return false;
-      }
-    } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
-      } else {
-        _setError('Có lỗi xảy ra khi cập nhật bình luận');
-      }
-      return false;
-    }
-  }
-
-  // Delete comment
-  Future<bool> deleteComment(int commentId) async {
-    try {
-      _setLoading(true);
-      clearError();
-
-      final response = await _apiService.deleteComment(commentId);
-
       if (response['success'] == true) {
-        // Remove from the list
-        _comments.removeWhere((c) => c.id == commentId);
-
-        _setLoading(false);
+        // Refresh comments after replying
+        await getMovieComments(_currentMovieId);
         return true;
       } else {
-        _setError(response['message'] ?? 'Không thể xóa bình luận');
+        _error = response['message'] ?? 'Không thể trả lời bình luận';
         return false;
       }
     } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
-      } else {
-        _setError('Có lỗi xảy ra khi xóa bình luận');
-      }
+      _error = 'Lỗi: ${e.toString()}';
       return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  // Clear comments
+  // Clear comments and reset state
   void clearComments() {
-    _comments = [];
+    _comments.clear();
+    _error = null;
+    _currentMovieId = 0;
     notifyListeners();
   }
+
+  // Get main comments (not replies)
+  List<Comment> get mainComments {
+    return _comments.where((comment) => !comment.isReply).toList();
+  }
+
+  // Get replies for a specific comment
+  List<Comment> getRepliesForComment(int parentId) {
+    return _comments.where((comment) => comment.parentId == parentId).toList();
+  }
+
+  // Get comment count
+  int get commentCount => _comments.length;
+
+  // Get main comment count (excluding replies)
+  int get mainCommentCount => mainComments.length;
 }

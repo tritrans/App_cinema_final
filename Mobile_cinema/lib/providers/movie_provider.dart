@@ -44,19 +44,24 @@ class MovieProvider with ChangeNotifier {
       print('MovieProvider.getMovies() response: $response');
 
       if (response['success'] == true && response['data'] != null) {
-        // API trả về dữ liệu trong response['data']['data'] (pagination)
         final data = response['data'];
-        if (data is Map && data['data'] != null) {
-          _movies = (data['data'] as List)
-              .map((movieJson) => Movie.fromJson(movieJson))
-              .toList();
-          print('Loaded ${_movies.length} movies from API (pagination)');
-        } else if (data is List) {
-          _movies = data.map((movieJson) => Movie.fromJson(movieJson)).toList();
-          print('Loaded ${_movies.length} movies from API (direct list)');
+        if (data != null) {
+          if (data is Map && data['data'] != null) {
+            _movies = (data['data'] as List)
+                .map((movieJson) => Movie.fromJson(movieJson))
+                .toList();
+            print('Loaded ${_movies.length} movies from API (pagination)');
+          } else if (data is List) {
+            _movies =
+                data.map((movieJson) => Movie.fromJson(movieJson)).toList();
+            print('Loaded ${_movies.length} movies from API (direct list)');
+          } else {
+            print('MovieProvider: Invalid data format from API');
+            _setError('Dữ liệu phim không hợp lệ từ API');
+          }
         } else {
-          print('MovieProvider: Invalid data format from API');
-          _setError('Dữ liệu phim không hợp lệ từ API');
+          print('MovieProvider: Data field is null in API response');
+          _setError('Không có dữ liệu phim từ API');
         }
       } else {
         print('MovieProvider: API returned error: ${response['message']}');

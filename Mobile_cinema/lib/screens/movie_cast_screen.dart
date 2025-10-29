@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cast_provider.dart';
 import '../models/cast.dart';
+import '../utils/url_helper.dart';
 
 class MovieCastScreen extends StatefulWidget {
   final int movieId;
@@ -164,8 +165,9 @@ class _MovieCastScreenState extends State<MovieCastScreen> {
           CircleAvatar(
             radius: 30,
             backgroundColor: Colors.grey[300],
-            backgroundImage:
-                cast.avatar != null ? NetworkImage(cast.avatar!) : null,
+            backgroundImage: cast.avatar != null
+                ? NetworkImage(UrlHelper.convertUrlForEmulator(cast.avatar!))
+                : null,
             child: cast.avatar == null
                 ? const Icon(Icons.person, size: 30, color: Colors.grey)
                 : null,

@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../models/user.dart' as app_user;
 import '../main.dart'; // Import for the navigator key
 import 'login_screen.dart';
+import '../utils/url_helper.dart';
 import 'favorite_screen.dart';
 import 'change_password_screen.dart';
 import 'ticket_screen.dart';
@@ -152,29 +153,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       cleanUrl = url.substring(0, url.indexOf('?t='));
     }
 
-    return ClipOval(
-      child: Image.network(
-        cleanUrl,
-        width: 100,
-        height: 100,
-        fit: BoxFit.cover,
-        cacheWidth: 200, // Caching để tăng hiệu suất
-        cacheHeight: 200,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return CircularProgressIndicator(
-            color: borderColor,
-            value: loadingProgress.expectedTotalBytes != null
-                ? loadingProgress.cumulativeBytesLoaded /
-                    loadingProgress.expectedTotalBytes!
-                : null,
-          );
-        },
-        errorBuilder: (context, error, stackTrace) {
-          debugPrint('Error loading avatar: $error');
-          return _buildDefaultAvatar(borderColor);
-        },
-      ),
+    // Chuyển đổi URL cho Android emulator
+    cleanUrl = UrlHelper.convertUrlForEmulator(cleanUrl);
+
+    return CircleAvatar(
+      radius: 50,
+      backgroundColor: borderColor,
+      backgroundImage: NetworkImage(cleanUrl),
+      onBackgroundImageError: (exception, stackTrace) {
+        debugPrint('Error loading avatar: $exception');
+      },
+      child: null, // Will show default avatar if image fails
     );
   }
 

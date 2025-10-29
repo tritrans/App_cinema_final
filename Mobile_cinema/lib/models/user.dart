@@ -30,10 +30,11 @@ class User {
       id: json['id'],
       name: json['name'],
       email: json['email'],
-      avatar: json['avatar'],
+      avatar: _processAvatarUrl(json['avatar']),
       role: json['role'] ?? 'user',
       roles: List<String>.from(json['roles'] ?? ['user']),
-      receiveNotifications: json['receive_notifications'] ?? true,
+      receiveNotifications: json['receive_notifications'] == true ||
+          json['receive_notifications'] == 1,
       emailVerifiedAt: json['email_verified_at'] != null
           ? DateTime.parse(json['email_verified_at'])
           : null,
@@ -97,6 +98,39 @@ class User {
 
   // Getter để lấy avatar URL hoặc placeholder
   String get avatarUrl => avatar ?? 'https://via.placeholder.com/150';
+
+  static String? _processAvatarUrl(String? originalUrl) {
+    if (originalUrl == null || originalUrl.isEmpty) {
+      return null;
+    }
+
+    // Import ApiService here to use its baseUrl
+    // This is a workaround as ApiService is not directly available in models
+    // A better solution would be to pass the base URL or use a global config.
+    // For now, we'll hardcode the Android emulator IP for consistency.
+    const String androidEmulatorIp = '10.0.2.2';
+    const String apiPort = '8000';
+    const String webAppPort = '8001';
+
+    String processedUrl = originalUrl;
+
+    // Replace 8001 with 8000 if present
+    if (processedUrl.contains(':$webAppPort')) {
+      processedUrl = processedUrl.replaceAll(':$webAppPort', ':$apiPort');
+    }
+
+    // Replace 127.0.0.1 with Android emulator IP if present
+    if (processedUrl.contains('127.0.0.1')) {
+      processedUrl = processedUrl.replaceAll('127.0.0.1', androidEmulatorIp);
+    }
+
+    // Ensure it starts with http
+    if (!processedUrl.startsWith('http')) {
+      processedUrl = 'http://$androidEmulatorIp:$apiPort/storage/$processedUrl';
+    }
+
+    return processedUrl;
+  }
 }
 
 class AuthResponse {

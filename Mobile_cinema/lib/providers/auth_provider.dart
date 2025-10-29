@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../services/api_service_enhanced.dart';
 
@@ -9,17 +10,37 @@ class AuthProvider with ChangeNotifier {
   bool _isAuthenticated = false;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _token;
 
   // Getters
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String? get token => _token;
 
   // Clear error message
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  // Save token to SharedPreferences
+  Future<void> _saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', token);
+  }
+
+  // Load token from SharedPreferences
+  Future<String?> _loadToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('auth_token');
+  }
+
+  // Clear token from SharedPreferences
+  Future<void> _clearToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
   }
 
   // Set loading state
@@ -41,25 +62,81 @@ class AuthProvider with ChangeNotifier {
       _setLoading(true);
       print('AuthProvider: Starting initialization...');
 
-      // Add timeout to prevent hanging
-      final response = await _apiService.getCurrentUser().timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          print('AuthProvider: getCurrentUser timeout');
-          throw Exception('Authentication check timeout');
-        },
-      );
+      // First, try to load token from SharedPreferences
+      final savedToken = await _loadToken();
+      if (savedToken != null) {
+        _token = savedToken;
+        print('AuthProvider: Loaded token from storage');
 
-      print('AuthProvider: Got response: ${response['success']}');
+        // Try to get user info with saved token
+        try {
+          final response = await _apiService.getCurrentUser().timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              print('AuthProvider: getCurrentUser timeout');
+              throw Exception('Authentication check timeout');
+            },
+          );
 
-      if (response['success'] == true && response['data'] != null) {
-        _currentUser = User.fromJson(response['data']);
-        _isAuthenticated = true;
-        print('AuthProvider: User authenticated: ${_currentUser!.name}');
+          print('AuthProvider: Got response: ${response['success']}');
+
+          if (response['success'] == true && response['data'] != null) {
+            _currentUser = User.fromJson(response['data']);
+            // Fix avatar URL to use correct port for Flutter app (like web app)
+            if (_currentUser?.avatar != null) {
+              final oldAvatar = _currentUser!.avatar!;
+              String newAvatar = oldAvatar;
+
+              // If avatar URL contains 8001 (web app port), replace with 8000 (API port)
+              if (oldAvatar.contains('8001')) {
+                newAvatar = oldAvatar.replaceAll('8001', '8000');
+                print('AuthProvider: Avatar URL fix - Old: $oldAvatar');
+                print('AuthProvider: Avatar URL fix - New: $newAvatar');
+              }
+
+              // If avatar URL doesn't start with http, prepend API base URL (like web app does)
+              if (!newAvatar.startsWith('http')) {
+                // Extract base URL without /api suffix
+                final apiBaseUrl = ApiService.baseUrl.replaceAll('/api', '');
+                newAvatar = '$apiBaseUrl/storage/$newAvatar';
+                print(
+                    'AuthProvider: Avatar URL prepend API base - New: $newAvatar');
+              } else {
+                // Ensure the base URL matches the configured API base URL
+                final configuredBaseUrl =
+                    ApiService.baseUrl.replaceAll('/api', '');
+                if (!newAvatar.startsWith(configuredBaseUrl)) {
+                  // Replace the domain part with the configured base URL
+                  final uri = Uri.parse(newAvatar);
+                  newAvatar = '$configuredBaseUrl${uri.path}';
+                  print('AuthProvider: Avatar URL rebase - Old: $oldAvatar');
+                  print('AuthProvider: Avatar URL rebase - New: $newAvatar');
+                }
+              }
+
+              _currentUser = _currentUser!.copyWith(avatar: newAvatar);
+              print('AuthProvider: Final avatar URL: ${_currentUser!.avatar}');
+            }
+            _isAuthenticated = true;
+            print('AuthProvider: User authenticated: ${_currentUser!.name}');
+          } else {
+            print('AuthProvider: Token invalid, clearing stored token');
+            await _clearToken();
+            _token = null;
+            _isAuthenticated = false;
+            _currentUser = null;
+          }
+        } catch (e) {
+          print('AuthProvider: Error validating token: $e');
+          await _clearToken();
+          _token = null;
+          _isAuthenticated = false;
+          _currentUser = null;
+        }
       } else {
+        print('AuthProvider: No saved token found');
         _isAuthenticated = false;
         _currentUser = null;
-        print('AuthProvider: User not authenticated');
       }
     } catch (e) {
       print('AuthProvider: Error in initialization: $e');
@@ -82,15 +159,46 @@ class AuthProvider with ChangeNotifier {
       _setLoading(true);
       clearError();
 
+      print('AuthProvider: Attempting login for email: $email');
       final response = await _apiService.login(
         email: email,
         password: password,
       );
 
+      print('AuthProvider: Login response: $response');
+
       if (response['success'] == true && response['data'] != null) {
         _currentUser = User.fromJson(response['data']['user']);
+        // Fix avatar URL to use correct port for Flutter app (like web app)
+        if (_currentUser?.avatar != null) {
+          final oldAvatar = _currentUser!.avatar!;
+          String newAvatar = oldAvatar;
+
+          // If avatar URL contains 8001 (web app port), replace with 8000 (API port)
+          if (oldAvatar.contains('8001')) {
+            newAvatar = oldAvatar.replaceAll('8001', '8000');
+          }
+
+          // If avatar URL doesn't start with http, prepend API base URL (like web app does)
+          if (!newAvatar.startsWith('http')) {
+            final apiBaseUrl = ApiService.baseUrl.replaceAll('/api', '');
+            newAvatar = '$apiBaseUrl/storage/$newAvatar';
+          } else {
+            final configuredBaseUrl = ApiService.baseUrl.replaceAll('/api', '');
+            if (!newAvatar.startsWith(configuredBaseUrl)) {
+              final uri = Uri.parse(newAvatar);
+              newAvatar = '$configuredBaseUrl${uri.path}';
+            }
+          }
+
+          _currentUser = _currentUser!.copyWith(avatar: newAvatar);
+        }
+        _token = response['data'][
+            'access_token']; // Save token (API returns 'access_token', not 'token')
+        await _saveToken(_token!); // Save token to SharedPreferences
         _isAuthenticated = true;
         _setLoading(false);
+        print('AuthProvider: Login successful for user: ${_currentUser?.name}');
         return true;
       } else {
         _setError(response['message'] ?? 'Đăng nhập thất bại');
@@ -194,6 +302,30 @@ class AuthProvider with ChangeNotifier {
 
       if (response['success'] == true && response['data'] != null) {
         _currentUser = User.fromJson(response['data']['user']);
+        // Fix avatar URL to use correct port for Flutter app (like web app)
+        if (_currentUser?.avatar != null) {
+          final oldAvatar = _currentUser!.avatar!;
+          String newAvatar = oldAvatar;
+
+          // If avatar URL contains 8001 (web app port), replace with 8000 (API port)
+          if (oldAvatar.contains('8001')) {
+            newAvatar = oldAvatar.replaceAll('8001', '8000');
+          }
+
+          // If avatar URL doesn't start with http, prepend API base URL (like web app does)
+          if (!newAvatar.startsWith('http')) {
+            final apiBaseUrl = ApiService.baseUrl.replaceAll('/api', '');
+            newAvatar = '$apiBaseUrl/storage/$newAvatar';
+          } else {
+            final configuredBaseUrl = ApiService.baseUrl.replaceAll('/api', '');
+            if (!newAvatar.startsWith(configuredBaseUrl)) {
+              final uri = Uri.parse(newAvatar);
+              newAvatar = '$configuredBaseUrl${uri.path}';
+            }
+          }
+
+          _currentUser = _currentUser!.copyWith(avatar: newAvatar);
+        }
         _isAuthenticated = true;
         _setLoading(false);
         return true;
@@ -327,6 +459,24 @@ class AuthProvider with ChangeNotifier {
 
       if (response['success'] == true && response['data'] != null) {
         _currentUser = User.fromJson(response['data']);
+        // Fix avatar URL to use correct port for Flutter app (like web app)
+        if (_currentUser?.avatar != null) {
+          final oldAvatar = _currentUser!.avatar!;
+          String newAvatar = oldAvatar;
+
+          // If avatar URL contains 8001 (web app port), replace with 8000 (API port)
+          if (oldAvatar.contains('8001')) {
+            newAvatar = oldAvatar.replaceAll('8001', '8000');
+          }
+
+          // If avatar URL doesn't start with http, prepend API base URL (like web app does)
+          if (!newAvatar.startsWith('http')) {
+            final apiBaseUrl = ApiService.baseUrl.replaceAll('/api', '');
+            newAvatar = '$apiBaseUrl/storage/$newAvatar';
+          }
+
+          _currentUser = _currentUser!.copyWith(avatar: newAvatar);
+        }
         _setLoading(false);
         return true;
       } else {
@@ -378,6 +528,30 @@ class AuthProvider with ChangeNotifier {
 
       if (response['success'] == true && response['data'] != null) {
         _currentUser = User.fromJson(response['data']);
+        // Fix avatar URL to use correct port for Flutter app (like web app)
+        if (_currentUser?.avatar != null) {
+          final oldAvatar = _currentUser!.avatar!;
+          String newAvatar = oldAvatar;
+
+          // If avatar URL contains 8001 (web app port), replace with 8000 (API port)
+          if (oldAvatar.contains('8001')) {
+            newAvatar = oldAvatar.replaceAll('8001', '8000');
+          }
+
+          // If avatar URL doesn't start with http, prepend API base URL (like web app does)
+          if (!newAvatar.startsWith('http')) {
+            final apiBaseUrl = ApiService.baseUrl.replaceAll('/api', '');
+            newAvatar = '$apiBaseUrl/storage/$newAvatar';
+          } else {
+            final configuredBaseUrl = ApiService.baseUrl.replaceAll('/api', '');
+            if (!newAvatar.startsWith(configuredBaseUrl)) {
+              final uri = Uri.parse(newAvatar);
+              newAvatar = '$configuredBaseUrl${uri.path}';
+            }
+          }
+
+          _currentUser = _currentUser!.copyWith(avatar: newAvatar);
+        }
         _isAuthenticated = true;
         notifyListeners();
       }
@@ -396,8 +570,21 @@ class AuthProvider with ChangeNotifier {
       _currentUser = null;
       _isAuthenticated = false;
       _errorMessage = null;
+      _token = null; // Clear token
+      await _clearToken(); // Clear token from SharedPreferences
       notifyListeners();
     }
+  }
+
+  // Method to clear all auth data for testing
+  Future<void> clearAuth() async {
+    _currentUser = null;
+    _isAuthenticated = false;
+    _errorMessage = null;
+    _token = null;
+    _isLoading = false;
+    await _clearToken();
+    notifyListeners();
   }
 
   // Refresh token

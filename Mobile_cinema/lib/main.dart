@@ -4,6 +4,7 @@ import 'providers/providers.dart';
 import 'utils/theme_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart'; // Import LoginScreen
+import 'screens/main_screen.dart'; // Import MainScreen
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -77,6 +78,7 @@ class MyApp extends StatelessWidget {
             routes: {
               '/splash': (context) => const SplashScreen(),
               '/login': (context) => const LoginScreen(), // Add login route
+              '/main': (context) => const MainScreen(), // Add main route
               // Add other routes as needed
             },
           );

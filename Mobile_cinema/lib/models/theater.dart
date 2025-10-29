@@ -35,7 +35,7 @@ class Theater {
         email: json['email']?.toString(),
         city: json['city']?.toString() ?? 'TP.HCM', // Default city
         description: json['description']?.toString(),
-        active: json['is_active'] ?? true,
+        active: json['is_active'] == true || json['is_active'] == 1,
         totalSeats: json['total_seats'] ?? 100, // Default to 100 seats
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'])

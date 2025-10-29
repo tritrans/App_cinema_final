@@ -8,7 +8,7 @@ import 'movie_booking_flow_new.dart';
 import '../providers/auth_provider.dart';
 import '../providers/review_provider.dart';
 import '../providers/comment_provider.dart'; // Import CommentProvider
-import '../services/gemini_service.dart';
+import '../widgets/review_comment_section.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   final Movie movie;
@@ -20,13 +20,9 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  String? _movieSummary;
-  bool _isSummaryLoading = true;
-
   @override
   void initState() {
     super.initState();
-    _fetchMovieSummary();
     _loadReviews();
   }
 
@@ -40,19 +36,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           Provider.of<CommentProvider>(context, listen: false);
       commentProvider.getMovieComments(widget.movie.id);
     });
-  }
-
-  Future<void> _fetchMovieSummary() async {
-    setState(() {
-      _isSummaryLoading = true;
-    });
-    final summary = await GeminiService.getMovieSummary(widget.movie.title);
-    if (mounted) {
-      setState(() {
-        _movieSummary = summary;
-        _isSummaryLoading = false;
-      });
-    }
   }
 
   void _refreshReviews() {
@@ -119,11 +102,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 }
 
                 final success = await reviewProvider.createReview(
-                  movieId: widget.movie.id,
-                  rating: userRating,
-                  comment: reviewController.text.isNotEmpty
-                      ? reviewController.text
-                      : null,
+                  widget.movie.id,
+                  userRating,
+                  reviewController.text.isNotEmpty ? reviewController.text : '',
+                  authProvider.token!,
                 );
 
                 if (success) {
@@ -270,7 +252,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(widget.movie.title,
-                      style: Theme.of(context).textTheme.displayLarge),
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              )),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -333,12 +319,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       style:
                           TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  _isSummaryLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : Text(
-                          _movieSummary ?? widget.movie.description,
-                          style: const TextStyle(fontSize: 16, height: 1.5),
-                        ),
+                  Text(
+                    widget.movie.description,
+                    style: const TextStyle(fontSize: 16, height: 1.5),
+                  ),
                   const SizedBox(height: 24),
                   // Reviews and Comments Section
                   _buildReviewsAndCommentsSection(isDark),
@@ -375,49 +359,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildReviewsAndCommentsSection(bool isDark) {
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          // Tab Bar
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[800] : Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TabBar(
-              indicator: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              labelColor: Colors.white,
-              unselectedLabelColor:
-                  isDark ? Colors.grey[400] : Colors.grey[600],
-              tabs: const [
-                Tab(
-                  icon: Icon(Icons.star, size: 20),
-                  text: 'Đánh giá',
-                ),
-                Tab(
-                  icon: Icon(Icons.comment, size: 20),
-                  text: 'Bình luận',
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Tab Content
-          SizedBox(
-            height: 400, // Fixed height for scrollable content
-            child: TabBarView(
-              children: [
-                _buildReviewsTab(isDark),
-                _buildCommentsTab(isDark),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return SizedBox(
+      height: 500, // Fixed height for better content display
+      child: ReviewCommentSection(movieId: widget.movie.id),
     );
   }
 
@@ -662,8 +606,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 }
 
                 final success = await commentProvider.createComment(
-                  movieId: widget.movie.id,
-                  content: commentController.text,
+                  widget.movie.id,
+                  commentController.text,
+                  token: authProvider.token!,
                 );
 
                 if (success) {

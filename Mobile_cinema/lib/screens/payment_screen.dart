@@ -4,6 +4,7 @@ import '../models/movie.dart';
 import '../models/schedule.dart';
 import '../models/booking.dart';
 import '../providers/booking_provider.dart';
+import '../providers/auth_provider.dart';
 
 class PaymentScreen extends StatefulWidget {
   final Movie movie;
@@ -142,12 +143,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
         );
       }).toList();
 
+      // Get current user ID from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final userId = currentUser?.id ?? 6; // Fallback to 6 if no user
+
       final success = await bookingProvider.createBooking(
         showtimeId: widget.schedule.id,
         seatIds: widget.selectedSeats,
         selectedSnacks: snacks,
         totalPrice: _getGrandTotal(),
-        userId: 6, // TODO: Get from auth provider
+        userId: userId,
       );
 
       if (success == true) {

@@ -17,12 +17,16 @@ class Cast {
 
   factory Cast.fromJson(Map<String, dynamic> json) {
     return Cast(
-      id: json['id'],
-      name: json['name'] ?? '',
-      avatar: json['avatar'],
-      characterName: json['character_name'],
-      billingOrder: json['billing_order'] ?? 0,
-      role: json['role'] ?? 'actor',
+      id: json['id'] is int
+          ? json['id']
+          : int.tryParse(json['id']?.toString() ?? '0'),
+      name: json['name']?.toString() ?? '',
+      avatar: json['avatar']?.toString(),
+      characterName: json['character_name']?.toString(),
+      billingOrder: json['billing_order'] is int
+          ? json['billing_order']
+          : int.tryParse(json['billing_order']?.toString() ?? '0') ?? 0,
+      role: json['role']?.toString() ?? 'actor',
     );
   }
 

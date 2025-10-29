@@ -4,11 +4,14 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:8000/api'; // Thay đổi IP nếu cần
+  static const String baseUrl = 'http://10.0.2.2:8000/api'; // Android emulator
 
   // Helper to get headers
   Map<String, String> _getHeaders({String? token}) {
-    final headers = {'Content-Type': 'application/json', 'Accept': 'application/json'};
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
     }
@@ -43,7 +46,8 @@ class ApiService {
       queryParams['featured'] = featured.toString();
     }
 
-    final uri = Uri.parse('$baseUrl/movies').replace(queryParameters: queryParams);
+    final uri =
+        Uri.parse('$baseUrl/movies').replace(queryParameters: queryParams);
     final response = await http.get(uri, headers: _getHeaders());
     return _handleResponse(response);
   }
@@ -62,7 +66,8 @@ class ApiService {
       'q': query,
       'page': page.toString(),
     };
-    final uri = Uri.parse('$baseUrl/movies/search').replace(queryParameters: queryParams);
+    final uri = Uri.parse('$baseUrl/movies/search')
+        .replace(queryParameters: queryParams);
     final response = await http.get(uri, headers: _getHeaders());
     return _handleResponse(response);
   }
@@ -80,45 +85,67 @@ class ApiService {
   }
 
   // --- Auth Methods ---
-  Future<Map<String, dynamic>> register(String name, String email, String password) async {
+  Future<Map<String, dynamic>> register(
+      String name, String email, String password) async {
     final uri = Uri.parse('$baseUrl/auth/register');
-    final response = await http.post(uri, headers: _getHeaders(), body: json.encode({'name': name, 'email': email, 'password': password}));
+    final response = await http.post(uri,
+        headers: _getHeaders(),
+        body:
+            json.encode({'name': name, 'email': email, 'password': password}));
     return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     final uri = Uri.parse('$baseUrl/auth/login');
-    final response = await http.post(uri, headers: _getHeaders(), body: json.encode({'email': email, 'password': password}));
+    final body = {'email': email, 'password': password};
+    print('ApiService: Login request to $uri');
+    print('ApiService: Login body: $body');
+    final response =
+        await http.post(uri, headers: _getHeaders(), body: json.encode(body));
+    print('ApiService: Login response status: ${response.statusCode}');
+    print('ApiService: Login response body: ${response.body}');
     return _handleResponse(response);
   }
-  
+
   Future<Map<String, dynamic>> sendOtp(String email) async {
     final uri = Uri.parse('$baseUrl/auth/send-otp');
-    final response = await http.post(uri, headers: _getHeaders(), body: json.encode({'email': email}));
+    final response = await http.post(uri,
+        headers: _getHeaders(), body: json.encode({'email': email}));
     return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
     final uri = Uri.parse('$baseUrl/auth/verify-otp');
-    final response = await http.post(uri, headers: _getHeaders(), body: json.encode({'email': email, 'otp': otp}));
+    final response = await http.post(uri,
+        headers: _getHeaders(),
+        body: json.encode({'email': email, 'otp': otp}));
     return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> forgotPassword(String email) async {
     final uri = Uri.parse('$baseUrl/auth/forgot-password');
-    final response = await http.post(uri, headers: _getHeaders(), body: json.encode({'email': email}));
+    final response = await http.post(uri,
+        headers: _getHeaders(), body: json.encode({'email': email}));
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> resetPassword(String email, String password, String token) async {
+  Future<Map<String, dynamic>> resetPassword(
+      String email, String password, String token) async {
     final uri = Uri.parse('$baseUrl/auth/reset-password');
-    final response = await http.post(uri, headers: _getHeaders(), body: json.encode({'email': email, 'password': password, 'token': token}));
+    final response = await http.post(uri,
+        headers: _getHeaders(),
+        body: json
+            .encode({'email': email, 'password': password, 'token': token}));
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> changePassword(String oldPassword, String newPassword, String token) async {
+  Future<Map<String, dynamic>> changePassword(
+      String oldPassword, String newPassword, String token) async {
     final uri = Uri.parse('$baseUrl/auth/change-password');
-    final response = await http.post(uri, headers: _getHeaders(token: token), body: json.encode({'old_password': oldPassword, 'new_password': newPassword}));
+    final response = await http.post(uri,
+        headers: _getHeaders(token: token),
+        body: json.encode(
+            {'old_password': oldPassword, 'new_password': newPassword}));
     return _handleResponse(response);
   }
 
@@ -128,9 +155,11 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> updateUser(int userId, Map<String, dynamic> data, String token) async {
+  Future<Map<String, dynamic>> updateUser(
+      int userId, Map<String, dynamic> data, String token) async {
     final uri = Uri.parse('$baseUrl/users/$userId');
-    final response = await http.put(uri, headers: _getHeaders(token: token), body: json.encode(data));
+    final response = await http.put(uri,
+        headers: _getHeaders(token: token), body: json.encode(data));
     return _handleResponse(response);
   }
 
@@ -141,7 +170,8 @@ class ApiService {
       ..files.add(await http.MultipartFile.fromPath(
         'avatar',
         image.path,
-        contentType: MediaType('image', 'jpeg'), // Adjust content type if needed
+        contentType:
+            MediaType('image', 'jpeg'), // Adjust content type if needed
       ));
     final response = await http.Response.fromStream(await request.send());
     return _handleResponse(response);
@@ -162,11 +192,14 @@ class ApiService {
 
   Future<Map<String, dynamic>> addToFavorites(int movieId, String token) async {
     final uri = Uri.parse('$baseUrl/favorites');
-    final response = await http.post(uri, headers: _getHeaders(token: token), body: json.encode({'movie_id': movieId}));
+    final response = await http.post(uri,
+        headers: _getHeaders(token: token),
+        body: json.encode({'movie_id': movieId}));
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> removeFromFavorites(int movieId, String token) async {
+  Future<Map<String, dynamic>> removeFromFavorites(
+      int movieId, String token) async {
     final uri = Uri.parse('$baseUrl/favorites/$movieId');
     final response = await http.delete(uri, headers: _getHeaders(token: token));
     return _handleResponse(response);
@@ -179,10 +212,12 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> addMovieReview(int movieId, double rating, String content, String token) async {
+  Future<Map<String, dynamic>> addMovieReview(
+      int movieId, double rating, String content, String token) async {
     final uri = Uri.parse('$baseUrl/movies/$movieId/reviews');
-    final body = json.encode({'rating': rating, 'content': content});
-    final response = await http.post(uri, headers: _getHeaders(token: token), body: body);
+    final body = json.encode({'rating': rating, 'comment': content});
+    final response =
+        await http.post(uri, headers: _getHeaders(token: token), body: body);
     return _handleResponse(response);
   }
 
@@ -192,10 +227,32 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> addMovieComment(int movieId, String content, {int? parentId, String? token}) async {
+  Future<Map<String, dynamic>> addMovieComment(int movieId, String content,
+      {int? parentId, String? token}) async {
     final uri = Uri.parse('$baseUrl/movies/$movieId/comments');
     final body = json.encode({'content': content, 'parent_id': parentId});
-    final response = await http.post(uri, headers: _getHeaders(token: token), body: body);
+    final response =
+        await http.post(uri, headers: _getHeaders(token: token), body: body);
+    return _handleResponse(response);
+  }
+
+  // Reply to review
+  Future<Map<String, dynamic>> replyToReview(int reviewId, String content,
+      {String? token}) async {
+    final uri = Uri.parse('$baseUrl/reviews/$reviewId/reply');
+    final body = json.encode({'content': content});
+    final response =
+        await http.post(uri, headers: _getHeaders(token: token), body: body);
+    return _handleResponse(response);
+  }
+
+  // Reply to comment
+  Future<Map<String, dynamic>> replyToComment(int commentId, String content,
+      {String? token}) async {
+    final uri = Uri.parse('$baseUrl/comments/$commentId/reply');
+    final body = json.encode({'content': content});
+    final response =
+        await http.post(uri, headers: _getHeaders(token: token), body: body);
     return _handleResponse(response);
   }
 
@@ -206,19 +263,23 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> createBooking(Map<String, dynamic> bookingData, String token) async {
+  Future<Map<String, dynamic>> createBooking(
+      Map<String, dynamic> bookingData, String token) async {
     final uri = Uri.parse('$baseUrl/bookings');
-    final response = await http.post(uri, headers: _getHeaders(token: token), body: json.encode(bookingData));
+    final response = await http.post(uri,
+        headers: _getHeaders(token: token), body: json.encode(bookingData));
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> cancelBooking(int bookingId, String token) async {
+  Future<Map<String, dynamic>> cancelBooking(
+      int bookingId, String token) async {
     final uri = Uri.parse('$baseUrl/bookings/$bookingId/cancel');
     final response = await http.post(uri, headers: _getHeaders(token: token));
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> getBookingDetails(int bookingId, String token) async {
+  Future<Map<String, dynamic>> getBookingDetails(
+      int bookingId, String token) async {
     final uri = Uri.parse('$baseUrl/bookings/$bookingId');
     final response = await http.get(uri, headers: _getHeaders(token: token));
     return _handleResponse(response);
@@ -231,9 +292,11 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> getMovieSchedules(int movieId, String date) async {
+  Future<Map<String, dynamic>> getMovieSchedules(
+      int movieId, String date) async {
     final queryParams = {'date': date};
-    final uri = Uri.parse('$baseUrl/schedules/movie/$movieId/flutter').replace(queryParameters: queryParams);
+    final uri = Uri.parse('$baseUrl/schedules/movie/$movieId/flutter')
+        .replace(queryParameters: queryParams);
     final response = await http.get(uri, headers: _getHeaders());
     return _handleResponse(response);
   }
@@ -244,17 +307,20 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> lockSeats(int scheduleId, List<int> seatIds, String token) async {
+  Future<Map<String, dynamic>> lockSeats(
+      int scheduleId, List<int> seatIds, String token) async {
     final uri = Uri.parse('$baseUrl/bookings/lock-seats');
     final body = json.encode({'schedule_id': scheduleId, 'seat_ids': seatIds});
-    final response = await http.post(uri, headers: _getHeaders(token: token), body: body);
+    final response =
+        await http.post(uri, headers: _getHeaders(token: token), body: body);
     return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> releaseSeats(String lockId, String token) async {
     final uri = Uri.parse('$baseUrl/bookings/release-seats');
     final body = json.encode({'lock_id': lockId});
-    final response = await http.post(uri, headers: _getHeaders(token: token), body: body);
+    final response =
+        await http.post(uri, headers: _getHeaders(token: token), body: body);
     return _handleResponse(response);
   }
 

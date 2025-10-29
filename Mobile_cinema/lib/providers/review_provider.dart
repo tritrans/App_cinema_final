@@ -6,250 +6,152 @@ class ReviewProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
 
   List<Review> _reviews = [];
-  Review? _userReview;
-
   bool _isLoading = false;
-  String? _errorMessage;
+  String? _error;
+  int _currentMovieId = 0;
 
-  // Getters
   List<Review> get reviews => _reviews;
-  Review? get userReview => _userReview;
   bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
+  String? get error => _error;
+  String? get errorMessage => _error; // Alias for compatibility
 
-  // Clear error message
-  void clearError() {
-    _errorMessage = null;
+  // Get reviews for a specific movie
+  Future<void> getMovieReviews(int movieId) async {
+    if (_currentMovieId == movieId && _reviews.isNotEmpty) {
+      return; // Already loaded
+    }
+
+    _isLoading = true;
+    _error = null;
+    _currentMovieId = movieId;
     notifyListeners();
-  }
 
-  // Set loading state
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
+    try {
+      final response = await _apiService.getMovieReviews(movieId);
+      if (response['success'] == true) {
+        // Handle both List and Map responses
+        List<dynamic> reviewsData;
+        if (response['data'] is List) {
+          reviewsData = response['data'] as List;
+        } else if (response['data'] is Map &&
+            response['data']['data'] is List) {
+          reviewsData = response['data']['data'] as List;
+        } else {
+          reviewsData = [];
+        }
 
-  // Set error message
-  void _setError(String message) {
-    _errorMessage = message;
+        _reviews = reviewsData.map((json) => Review.fromJson(json)).toList();
+      } else {
+        _error = response['message'] ?? 'Không thể tải đánh giá';
+      }
+    } catch (e) {
+      _error = 'Lỗi: ${e.toString()}';
+    }
+
     _isLoading = false;
     notifyListeners();
   }
 
-  // Get movie reviews
-  Future<void> getMovieReviews(int movieId, {int page = 1}) async {
+  /// Tạo đánh giá mới cho phim
+  ///
+  /// [movieId] - ID của phim
+  /// [rating] - Điểm đánh giá (1-5)
+  /// [comment] - Nội dung đánh giá
+  /// [token] - JWT token để xác thực
+  ///
+  /// Trả về true nếu tạo thành công, false nếu có lỗi
+  Future<bool> createReview(
+      int movieId, double rating, String comment, String token) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
     try {
-      _setLoading(true);
-      clearError();
-
-      final response = await _apiService.getMovieReviews(movieId, page: page);
-
-      if (response['success'] == true && response['data'] != null) {
-        if (page == 1) {
-          // First page - replace existing reviews
-          _reviews = (response['data'] as List)
-              .map((reviewJson) => Review.fromJson(reviewJson))
-              .toList();
-        } else {
-          // Additional pages - append to existing reviews
-          final newReviews = (response['data'] as List)
-              .map((reviewJson) => Review.fromJson(reviewJson))
-              .toList();
-          _reviews.addAll(newReviews);
-        }
-
-        // Sort reviews by creation date (newest first)
-        _reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        _setLoading(false);
-      } else {
-        _setError(response['message'] ?? 'Không thể tải đánh giá');
-      }
-    } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
-      } else {
-        _setError('Có lỗi xảy ra khi tải đánh giá');
-      }
-    }
-  }
-
-  // Create review
-  Future<bool> createReview({
-    required int movieId,
-    required double rating,
-    String? comment,
-  }) async {
-    try {
-      _setLoading(true);
-      clearError();
-
       final response = await _apiService.createReview(
         movieId: movieId,
         rating: rating,
         comment: comment,
       );
-
-      if (response['success'] == true && response['data'] != null) {
-        final newReview = Review.fromJson(response['data']);
-
-        // Add to the beginning of the list
-        _reviews.insert(0, newReview);
-
-        // Set as user review
-        _userReview = newReview;
-
-        _setLoading(false);
+      if (response['success'] == true) {
+        // Refresh reviews after adding
+        await getMovieReviews(movieId);
         return true;
       } else {
-        _setError(response['message'] ?? 'Không thể tạo đánh giá');
+        if (response['message']?.contains('already reviewed') == true) {
+          _error = 'Bạn đã đánh giá phim này rồi';
+        } else {
+          _error = response['message'] ?? 'Không thể thêm đánh giá';
+        }
         return false;
       }
     } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
+      if (e.toString().contains('already reviewed')) {
+        _error = 'Bạn đã đánh giá phim này rồi';
       } else {
-        _setError('Có lỗi xảy ra khi tạo đánh giá');
+        _error = 'Lỗi: ${e.toString()}';
       }
       return false;
-    }
-  }
-
-  // Get user movie review
-  Future<void> getUserMovieReview(int movieId) async {
-    try {
-      final response = await _apiService.getUserMovieReview(movieId);
-
-      if (response['success'] == true && response['data'] != null) {
-        _userReview = Review.fromJson(response['data']);
-        notifyListeners();
-      } else {
-        _userReview = null;
-        notifyListeners();
-      }
-    } catch (e) {
-      _userReview = null;
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
 
-  // Update review
-  Future<bool> updateReview({
-    required int reviewId,
-    required double rating,
-    String? comment,
-  }) async {
-    try {
-      _setLoading(true);
-      clearError();
+  // Reply to a review
+  Future<bool> replyToReview(int reviewId, String content, String token) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      final response = await _apiService.updateReview(
+    try {
+      final response = await _apiService.createReviewReply(
         reviewId: reviewId,
-        rating: rating,
-        comment: comment,
+        content: content,
       );
-
-      if (response['success'] == true && response['data'] != null) {
-        final updatedReview = Review.fromJson(response['data']);
-
-        // Update in the list
-        final index = _reviews.indexWhere((r) => r.id == reviewId);
-        if (index != -1) {
-          _reviews[index] = updatedReview;
-        }
-
-        // Update user review if it's the same
-        if (_userReview?.id == reviewId) {
-          _userReview = updatedReview;
-        }
-
-        _setLoading(false);
-        return true;
-      } else {
-        _setError(response['message'] ?? 'Không thể cập nhật đánh giá');
-        return false;
-      }
-    } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
-      } else {
-        _setError('Có lỗi xảy ra khi cập nhật đánh giá');
-      }
-      return false;
-    }
-  }
-
-  // Delete review
-  Future<bool> deleteReview(int reviewId) async {
-    try {
-      _setLoading(true);
-      clearError();
-
-      final response = await _apiService.deleteReview(reviewId);
-
       if (response['success'] == true) {
-        // Remove from the list
-        _reviews.removeWhere((r) => r.id == reviewId);
-
-        // Clear user review if it's the same
-        if (_userReview?.id == reviewId) {
-          _userReview = null;
-        }
-
-        _setLoading(false);
+        // Refresh reviews after replying
+        await getMovieReviews(_currentMovieId);
         return true;
       } else {
-        _setError(response['message'] ?? 'Không thể xóa đánh giá');
+        _error = response['message'] ?? 'Không thể trả lời đánh giá';
         return false;
       }
     } catch (e) {
-      if (e is ApiException) {
-        _setError(e.detailedMessage);
-      } else {
-        _setError('Có lỗi xảy ra khi xóa đánh giá');
-      }
+      _error = 'Lỗi: ${e.toString()}';
       return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  // Get average rating from reviews
+  // Clear reviews and reset state
+  void clearReviews() {
+    _reviews.clear();
+    _error = null;
+    _currentMovieId = 0;
+    notifyListeners();
+  }
+
+  // Get average rating
   double get averageRating {
     if (_reviews.isEmpty) return 0.0;
-    final total = _reviews.fold(0.0, (sum, review) => sum + review.rating);
-    return total / _reviews.length;
+
+    final totalRating =
+        _reviews.fold(0.0, (sum, review) => sum + review.rating);
+    return totalRating / _reviews.length;
   }
+
+  // Get rating count
+  int get ratingCount => _reviews.length;
 
   // Get rating distribution
   Map<int, int> get ratingDistribution {
-    final distribution = <int, int>{1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
-    for (final review in _reviews) {
-      final rating = review.rating.round();
-      distribution[rating] = (distribution[rating] ?? 0) + 1;
+    final distribution = <int, int>{};
+    for (int i = 1; i <= 5; i++) {
+      distribution[i] =
+          _reviews.where((review) => review.rating.round() == i).length;
     }
     return distribution;
-  }
-
-  // Get reviews with comments only
-  List<Review> get reviewsWithComments {
-    return _reviews
-        .where((review) => review.comment != null && review.comment!.isNotEmpty)
-        .toList();
-  }
-
-  // Check if user has reviewed the movie
-  bool get hasUserReviewed => _userReview != null;
-
-  // Clear reviews
-  void clearReviews() {
-    _reviews = [];
-    _userReview = null;
-    notifyListeners();
-  }
-
-  // Clear all data
-  void clearAll() {
-    _reviews = [];
-    _userReview = null;
-    notifyListeners();
   }
 }

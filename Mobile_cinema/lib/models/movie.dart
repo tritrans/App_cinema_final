@@ -73,7 +73,7 @@ class Movie {
       director: json['director'],
       cast: json['cast'] != null ? List<String>.from(json['cast']) : null,
       slug: json['slug'],
-      featured: json['featured'] ?? false,
+      featured: json['featured'] == true || json['featured'] == 1,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : null,

@@ -33,7 +33,9 @@ class _MovieBookingFlowNewState extends State<MovieBookingFlowNew> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   Future<void> _loadData() async {
